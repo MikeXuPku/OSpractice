@@ -50,6 +50,7 @@
 #include "directory.h"
 #include "filehdr.h"
 #include "filesys.h"
+#include "system.h"
 
 // Sectors containing the file headers for the bitmap of free sectors,
 // and the directory of files.  These file headers are placed in well-known 
@@ -61,8 +62,8 @@
 // supports extensible files, the directory size sets the maximum number 
 // of files that can be loaded onto the disk.
 #define FreeMapFileSize 	(NumSectors / BitsInByte)
-#define NumDirEntries 		10
-#define DirectoryFileSize 	(sizeof(DirectoryEntry) * NumDirEntries)
+//#define NumDirEntries       10
+#define DirectoryFileSize 	(sizeof(DirectoryEntry) * NumDirEntries + 12 + maxStrLen)
 
 //----------------------------------------------------------------------
 // FileSystem::FileSystem
@@ -77,12 +78,22 @@
 //	"format" -- should we initialize the disk?
 //----------------------------------------------------------------------
 
+extern bool pathAdd(char * main, char * add);
+
 FileSystem::FileSystem(bool format)
 { 
+    IntStatus oldLevel = interrupt->SetLevel(IntOff);
+
+    now = father = DirectorySector;
+
     DEBUG('f', "Initializing the file system.\n");
     if (format) {
+        printf("formatting the FileSystem\n");
         BitMap *freeMap = new BitMap(NumSectors);
         Directory *directory = new Directory(NumDirEntries);
+        //root directory
+        strncpy(directory->path, "/home", maxStrLen);
+        directory->father = DirectorySector;
 	FileHeader *mapHdr = new FileHeader;
 	FileHeader *dirHdr = new FileHeader;
 
@@ -114,6 +125,8 @@ FileSystem::FileSystem(bool format)
 
         freeMapFile = new OpenFile(FreeMapSector);
         directoryFile = new OpenFile(DirectorySector);
+
+        //printf("when done here , ok!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
      
     // Once we have the files "open", we can write the initial version
     // of each file back to disk.  The directory at this point is completely
@@ -123,7 +136,9 @@ FileSystem::FileSystem(bool format)
 
         DEBUG('f', "Writing bitmap and directory back to disk.\n");
 	freeMap->WriteBack(freeMapFile);	 // flush changes to disk
+                //printf("writeback freemap ok!!!!!\n");
 	directory->WriteBack(directoryFile);
+                //printf("write back directory ok!!!!!!!!!\n");
 
 	if (DebugIsEnabled('f')) {
 	    freeMap->Print();
@@ -140,6 +155,8 @@ FileSystem::FileSystem(bool format)
         freeMapFile = new OpenFile(FreeMapSector);
         directoryFile = new OpenFile(DirectorySector);
     }
+    //printf("construct FileSystem ok!!!!!!!!!!!!!!!!!!!!!\n");
+     (void) interrupt->SetLevel(oldLevel);
 }
 
 //----------------------------------------------------------------------
@@ -174,43 +191,64 @@ FileSystem::FileSystem(bool format)
 bool
 FileSystem::Create(char *name, int initialSize)
 {
+    IntStatus oldLevel = interrupt->SetLevel(IntOff);
+
     Directory *directory;
     BitMap *freeMap;
     FileHeader *hdr;
+    OpenFile *directoryfile;
     int sector;
     bool success;
 
     DEBUG('f', "Creating file %s, size %d\n", name, initialSize);
 
     directory = new Directory(NumDirEntries);
-    directory->FetchFrom(directoryFile);
+    directoryfile = new OpenFile(now);
+    directory->FetchFrom(directoryfile);
 
     if (directory->Find(name) != -1)
-      success = FALSE;			// file is already in directory
-    else {	
+        success = FALSE;			// file is already in directory
+    else
+     {	
         freeMap = new BitMap(NumSectors);
         freeMap->FetchFrom(freeMapFile);
         sector = freeMap->Find();	// find a sector to hold the file header
-    	if (sector == -1) 		
+        printf("we find sector %d to store the fileheader\n", sector);
+        if (sector == -1) 		
             success = FALSE;		// no free block for file header 
         else if (!directory->Add(name, sector))
             success = FALSE;	// no space in directory
-	else {
-    	    hdr = new FileHeader;
-	    if (!hdr->Allocate(freeMap, initialSize))
+        else 
+        {
+            hdr = new FileHeader;
+            if (!hdr->Allocate(freeMap, initialSize))
             	success = FALSE;	// no space on disk for data
-	    else {	
-	    	success = TRUE;
+            else
+             {	
+	success = TRUE;
 		// everthing worked, flush all changes back to disk
-    	    	hdr->WriteBack(sector); 		
-    	    	directory->WriteBack(directoryFile);
-    	    	freeMap->WriteBack(freeMapFile);
-	    }
+                //printf("just before write back to disk, we check the hdr file:\n");
+                //hdr->Print();
+                //printf("################################################\n");
+    	hdr->WriteBack(sector); 
+                //printf("sector: %d  hdr writeback ok??????????????????????????????????\n", sector);
+                //hdr->FetchFrom(sector);
+                //hdr->Print();
+                //printf("mysterymysterymysterymysterymysterymysterymysterymysterymystery \n");
+                //directory->Print();		
+    	directory->WriteBack(directoryfile);
+                //freeMap->Print();
+    	freeMap->WriteBack(freeMapFile);
+                //printf("###################################################\n");
+            }
             delete hdr;
-	}
+        }
         delete freeMap;
     }
     delete directory;
+    delete directoryfile;
+
+    (void) interrupt->SetLevel(oldLevel);
     return success;
 }
 
@@ -257,6 +295,7 @@ FileSystem::Open(char *name)
 bool
 FileSystem::Remove(char *name)
 { 
+     IntStatus oldLevel = interrupt->SetLevel(IntOff);
     Directory *directory;
     BitMap *freeMap;
     FileHeader *fileHdr;
@@ -266,8 +305,15 @@ FileSystem::Remove(char *name)
     directory->FetchFrom(directoryFile);
     sector = directory->Find(name);
     if (sector == -1) {
-       delete directory;
-       return FALSE;			 // file not found 
+       delete directory;			 // file not found 
+       (void) interrupt->SetLevel(oldLevel);
+       return FALSE;
+    }
+    else if(referCount[sector] > 1){
+        printf("other thread are using this file:%s, so you can not delete it\n", name);
+        delete directory;
+        (void) interrupt->SetLevel(oldLevel);
+        return FALSE;
     }
     fileHdr = new FileHeader;
     fileHdr->FetchFrom(sector);
@@ -284,6 +330,7 @@ FileSystem::Remove(char *name)
     delete fileHdr;
     delete directory;
     delete freeMap;
+    (void) interrupt->SetLevel(oldLevel);
     return TRUE;
 } 
 
@@ -339,3 +386,106 @@ FileSystem::Print()
     delete freeMap;
     delete directory;
 } 
+
+void FileSystem::CD(char *filename)
+{
+     IntStatus oldLevel = interrupt->SetLevel(IntOff);
+    OpenFile *directoryfile ; 
+    Directory *directory = new Directory(NumDirEntries);
+    if(strcmp(filename, "..") == 0) {
+        // step back
+        now = father;
+        directoryfile = new OpenFile(now);
+        directory->FetchFrom(directoryfile);
+        father = directory->father;
+        delete directory;
+        delete directoryfile;
+    }
+    else{
+        directoryfile = new OpenFile(now);
+        directory->FetchFrom(directoryfile);
+        int i = directory->FindIndex(filename);
+        if(i == -1){
+            printf("can not find the file:%s\n", filename);
+        }
+        else if((directory->table[i]).file_type_ == NORMAL ){
+            printf("the file:%s is not a directory file\n", filename);
+        }
+        else{
+            father = now;
+            now = directory->table[i].sector;
+            printf("enter directory file:%s successfully!\n", filename);
+        }
+        delete directory;
+        delete directoryfile;
+    }
+    (void) interrupt->SetLevel(oldLevel);
+}
+
+void FileSystem::mkdir(char *filename)
+{
+     IntStatus oldLevel = interrupt->SetLevel(IntOff);
+    Directory *directory;
+    BitMap *freeMap;
+    FileHeader *hdr;
+    OpenFile *directoryfile;
+    int sector;
+    bool success;
+    DEBUG('f', "Creating directory file %s\n", filename);
+
+    directory = new Directory(NumDirEntries);
+
+    directoryfile = new OpenFile(now);
+    directory->FetchFrom(directoryfile);
+
+    if (directory->Find(filename) != -1)
+        success = FALSE;            // file is already in directory
+    else
+     {  
+        freeMap = new BitMap(NumSectors);
+        freeMap->FetchFrom(freeMapFile);
+        sector = freeMap->Find();   // find a sector to hold the file header
+        printf("we find sector %d to store the fileheader\n", sector);
+        if (sector == -1)       
+            success = FALSE;        // no free block for file header 
+        else if (!directory->Add(filename, sector, DIRECTORY))
+            success = FALSE;    // no space in directory
+        else 
+        {
+            hdr = new FileHeader;
+            if (!hdr->Allocate(freeMap, DirectoryFileSize))
+                success = FALSE;    // no space on disk for data
+            else
+             {  
+    success = TRUE;
+        // everthing worked, flush all changes back to disk
+                //printf("just before write back to disk, we check the hdr file:\n");
+                //hdr->Print();
+                //printf("################################################\n");
+        hdr->WriteBack(sector); 
+                //printf("sector: %d  hdr writeback ok??????????????????????????????????\n", sector);
+                //hdr->FetchFrom(sector);
+                //hdr->Print();
+                //printf("mysterymysterymysterymysterymysterymysterymysterymysterymystery \n");
+                //directory->Print();       
+        directory->WriteBack(directoryfile);
+        delete directoryfile;
+                //freeMap->Print();
+        freeMap->WriteBack(freeMapFile);
+                directoryfile = new OpenFile(sector);
+                Directory *directory1 = new Directory(NumDirEntries);
+                directory1->father = now;
+                strncpy(directory1->path, directory->path, maxStrLen);
+                pathAdd(directory1->path, filename);
+                directory1->WriteBack(directoryfile);
+                delete directoryfile;
+                delete directory1;
+            }
+            delete hdr;
+        }
+        delete freeMap;
+    }
+    delete directory; 
+    if(success)printf("mkdir:%s successfully\n",filename);
+    (void) interrupt->SetLevel(oldLevel);
+}

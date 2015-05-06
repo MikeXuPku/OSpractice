@@ -34,6 +34,20 @@
 //
 //	"size" is the number of entries in the directory
 //----------------------------------------------------------------------
+bool pathAdd(char * main, char * add){
+    if(strlen(main) + strlen(add) > maxStrLen-1) {
+        printf("path overflow the maxStrLen\n");
+        ASSERT(false);
+        return false;
+    }
+    int posMain = strlen(main), posAdd = strlen(add);
+    main[posMain] = '/';
+    for(int i = 1; i <= posAdd; ++i){
+        main[posMain + i] = add[i -1];
+    }
+    main[posMain + posAdd + 1] = '\0';
+    return true;
+}
 
 Directory::Directory(int size)
 {
@@ -63,7 +77,9 @@ Directory::~Directory()
 void
 Directory::FetchFrom(OpenFile *file)
 {
-    (void) file->ReadAt((char *)table, tableSize * sizeof(DirectoryEntry), 0);
+    //(void) file->ReadAt((char *)table, tableSize * sizeof(DirectoryEntry), 0);
+    (void) file->ReadAt((char *)this, 8 + maxStrLen, 0);
+    (void) file->ReadAt((char *)table, tableSize * sizeof(DirectoryEntry),  8 + maxStrLen);
 }
 
 //----------------------------------------------------------------------
@@ -76,7 +92,9 @@ Directory::FetchFrom(OpenFile *file)
 void
 Directory::WriteBack(OpenFile *file)
 {
-    (void) file->WriteAt((char *)table, tableSize * sizeof(DirectoryEntry), 0);
+    //(void) file->WriteAt((char *)table, tableSize * sizeof(DirectoryEntry), 0);
+    (void) file->WriteAt((char *)this, 8 + maxStrLen, 0);
+    (void) file->WriteAt((char *)table, tableSize * sizeof(DirectoryEntry),  8 + maxStrLen);
 }
 
 //----------------------------------------------------------------------
@@ -91,7 +109,7 @@ int
 Directory::FindIndex(char *name)
 {
     for (int i = 0; i < tableSize; i++)
-        if (table[i].inUse && !strncmp(table[i].name, name, FileNameMaxLen))
+        if (table[i].inUse && !strncmp(table[i].name, name, maxStrLen))
 	    return i;
     return -1;		// name not in directory
 }
@@ -127,7 +145,7 @@ Directory::Find(char *name)
 //----------------------------------------------------------------------
 
 bool
-Directory::Add(char *name, int newSector)
+Directory::Add(char *name, int newSector, FileType file_type )
 { 
     if (FindIndex(name) != -1)
 	return FALSE;
@@ -135,8 +153,14 @@ Directory::Add(char *name, int newSector)
     for (int i = 0; i < tableSize; i++)
         if (!table[i].inUse) {
             table[i].inUse = TRUE;
-            strncpy(table[i].name, name, FileNameMaxLen); 
+            strncpy(table[i].name, name, maxStrLen);
+            table[i].name[maxStrLen-1] = '\0'; 
             table[i].sector = newSector;
+            table[i].file_type_ = file_type;
+            //calculate the new path for the new file
+            strncpy(table[i].path, path, maxStrLen);
+            pathAdd(table[i].path, name);
+
         return TRUE;
 	}
     return FALSE;	// no space.  Fix when we have extensible files.
@@ -169,9 +193,19 @@ Directory::Remove(char *name)
 void
 Directory::List()
 {
-   for (int i = 0; i < tableSize; i++)
-	if (table[i].inUse)
-	    printf("%s\n", table[i].name);
+   for (int i = 0; i < tableSize; i++){
+        if (table[i].inUse){
+            printf("%s\n", table[i].name);
+            if(table[i].file_type_ == DIRECTORY){
+                printf("###########Sub Directry###################\n");
+                Directory dir(10);
+                OpenFile openfile(table[i].sector);
+                dir.FetchFrom(&openfile);
+                dir.List();
+                printf("###########End Sub Directory###############\n");
+            }
+        }
+    }
 }
 
 //----------------------------------------------------------------------
@@ -189,9 +223,19 @@ Directory::Print()
     for (int i = 0; i < tableSize; i++)
 	if (table[i].inUse) {
 	    printf("Name: %s, Sector: %d\n", table[i].name, table[i].sector);
-	    hdr->FetchFrom(table[i].sector);
-	    hdr->Print();
+                    if(table[i].file_type_ == DIRECTORY){
+                         printf("###########Sub Directry###################\n");
+                        Directory dir(10);
+                        OpenFile openfile(table[i].sector);
+                        dir.FetchFrom(&openfile);
+                        dir.Print();
+                        printf("###########End Sub Directory###############\n");
+                    }
+                    else{
+	       hdr->FetchFrom(table[i].sector);
+	       hdr->Print();
+                    }
 	}
-    printf("\n");
+    printf("Directory contents END\n");
     delete hdr;
 }

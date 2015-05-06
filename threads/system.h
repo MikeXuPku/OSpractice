@@ -46,6 +46,7 @@ extern Machine* machine;	// user program memory and registers
 #ifdef FILESYS_NEEDED 		// FILESYS or FILESYS_STUB 
 #include "filesys.h"
 extern FileSystem  *fileSystem;
+extern int *referCount;
 #endif
 
 #ifdef FILESYS

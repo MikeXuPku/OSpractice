@@ -22,6 +22,7 @@ Table *thread_slot;
 
 #ifdef FILESYS_NEEDED
 FileSystem  *fileSystem;
+int *referCount;
 #endif
 
 #ifdef FILESYS
@@ -87,6 +88,8 @@ Initialize(int argc, char **argv)
 #endif
 #ifdef FILESYS_NEEDED
     bool format = FALSE;	// format disk
+    referCount = new int [1024];
+    for(int i = 0;i<1024;++i)referCount[i] = 0;
 #endif
 #ifdef NETWORK
     double rely = 1;		// network reliability
@@ -186,6 +189,7 @@ Cleanup()
 
 #ifdef FILESYS_NEEDED
     delete fileSystem;
+    delete referCount;
 #endif
 
 #ifdef FILESYS

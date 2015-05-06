@@ -32,6 +32,8 @@ OpenFile::OpenFile(int sector)
     hdr = new FileHeader;
     hdr->FetchFrom(sector);
     seekPosition = 0;
+    sector_ = sector; 
+    referCount[sector]++;
 }
 
 //----------------------------------------------------------------------
@@ -41,6 +43,7 @@ OpenFile::OpenFile(int sector)
 
 OpenFile::~OpenFile()
 {
+    referCount[sector_]--;
     delete hdr;
 }
 
@@ -146,15 +149,58 @@ OpenFile::ReadAt(char *into, int numBytes, int position)
 int
 OpenFile::WriteAt(char *from, int numBytes, int position)
 {
+    //printf("writeAT begin!!!!!!!!!!!!!\n");
     int fileLength = hdr->FileLength();
     int i, firstSector, lastSector, numSectors;
     bool firstAligned, lastAligned;
     char *buf;
-
-    if ((numBytes <= 0) || (position >= fileLength))
-	return 0;				// check request
-    if ((position + numBytes) > fileLength)
-	numBytes = fileLength - position;
+    BitMap *freeMap = new BitMap(NumSectors);
+    //printf("heheheheheh\n");
+    //printf("why??????????????????????\n");
+    if ((numBytes <= 0) ){
+        //printf("numBytes is 0!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+        return 0;               // check request
+    }
+    if ((position + numBytes) > fileLength){
+         freeMap->FetchFrom(fileSystem->freeMapFile);
+        // now we need to extend the file to the length position + numBytes
+        // ok we do  check if the file is overflow the maxfilesize
+        printf("we try to enlarge the file when we write file !!!!!!!!!!!!!!\n");
+        if(position + numBytes > MaxFileSize) {
+            printf("the file is too big\n ");
+            ASSERT(false);
+        }
+        int newfilesize = position + numBytes;
+        int newsectors = divRoundUp(newfilesize, SectorSize);
+        if(freeMap->NumClear() < newsectors - hdr->numSectors){
+            printf("not enough space in disk\n");
+            ASSERT(false);
+        }
+        if(position + numBytes <= (NumDirect-1) * SectorSize){
+            for(i = hdr->numSectors; i < newsectors;++i )hdr->dataSectors[i] = freeMap->Find();
+        }
+        else{
+                for(i = hdr->numSectors;i < NumDirect-1;++i)hdr->dataSectors[i] = freeMap->Find();
+                if(hdr->numSectors<NumDirect-1){
+                    hdr->dataSectors[NumDirect-1] = freeMap->Find();
+                    printf("we need to allocate a sector for indirect index use!!!!\n");
+                    int indirecttext[SectorSize/4];
+                    for(i =0 ;i<newsectors - NumDirect+1;++i)indirecttext[i] = freeMap->Find();
+                    synchDisk->WriteSector(hdr->dataSectors[NumDirect-1], (char *)indirecttext);
+                }
+                else{
+                    int indirecttext[SectorSize/4];
+                    synchDisk->ReadSector(hdr->dataSectors[NumDirect-1], (char *)indirecttext);
+                    for(i = hdr->numSectors - NumDirect+1;i<newsectors -NumDirect+1;++i)indirecttext[i] = freeMap->Find();
+                    synchDisk->WriteSector(hdr->dataSectors[NumDirect-1], (char *)indirecttext);
+                }
+        }
+        freeMap->WriteBack(fileSystem->freeMapFile);
+        hdr->numBytes = newfilesize;
+        hdr->numSectors = newsectors;
+        hdr->WriteBack(sector_);
+    }
+	//numBytes = fileLength - position;
     DEBUG('f', "Writing %d bytes at %d, from file of length %d.\n", 	
 			numBytes, position, fileLength);
 

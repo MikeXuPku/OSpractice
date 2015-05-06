@@ -20,7 +20,7 @@
 #include "thread.h"
 #include "disk.h"
 #include "stats.h"
-
+#include "directory.h"
 #define TransferSize 	10 	// make it small, just to be difficult
 
 //----------------------------------------------------------------------
@@ -54,6 +54,9 @@ Copy(char *from, char *to)
 	fclose(fp);
 	return;
     }
+    //printf("create the to file #######################################################\n");
+    fileSystem->Print();
+    //printf("##################################################################\n");
     
     openFile = fileSystem->Open(to);
     ASSERT(openFile != NULL);
@@ -181,5 +184,28 @@ PerformanceTest()
       return;
     }
     stats->Print();
+}
+
+char words[100] = "we try to write bytes more than the file can hold !";
+
+void filesysTest()
+{
+    fileSystem->Create("daughter", 10);
+    fileSystem->mkdir("sons");
+    fileSystem->CD("sons");
+    fileSystem->Create("bill", 10);
+    fileSystem->Create("leo", 10);
+
+    OpenFile *openfile = new OpenFile(fileSystem->now);
+    Directory * directory = new Directory(NumDirEntries);
+    directory->FetchFrom(openfile);
+    int sector1 = directory->Find("bill");
+    delete openfile;
+    openfile = new OpenFile(sector1);
+    openfile->WriteAt(words, 100, 5);
+    delete openfile;
+    delete directory;
+
+    fileSystem->List();
 }
 

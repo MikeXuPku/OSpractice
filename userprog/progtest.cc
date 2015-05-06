@@ -11,6 +11,7 @@
 #include "copyright.h"
 #include "system.h"
 #include "console.h"
+#include "synchconsole.h"
 #include "addrspace.h"
 #include "synch.h"
 
@@ -81,4 +82,21 @@ ConsoleTest (char *in, char *out)
 	writeDone->P() ;        // wait for write to finish
 	if (ch == 'q') return;  // if q, quit
     }
+}
+void    SynchConsoleTest(char *in, char *out)
+{
+    char str[255];
+    char ch;
+    int i, j;
+    SynchConsole *synchconsole = new SynchConsole(in, out, 0);
+
+    for(i=0; i<255; i++)
+    {
+        ch = synchconsole->SynchGetChar();
+        strncpy(&str[i],&ch,1);
+
+        if(str[i] == 'q') break;
+    }
+    for(j=0; j<i; j++)
+        synchconsole->SynchPutChar(str[j]);
 }

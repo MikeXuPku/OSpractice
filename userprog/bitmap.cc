@@ -161,5 +161,6 @@ BitMap::FetchFrom(OpenFile *file)
 void
 BitMap::WriteBack(OpenFile *file)
 {
+      //printf("sizeof(unsigned):%d\n", sizeof(unsigned));
    file->WriteAt((char *)map, numWords * sizeof(unsigned), 0);
 }

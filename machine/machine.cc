@@ -290,3 +290,9 @@ int Machine::kickOutPage(){
 
     return marked;
 }
+
+void Machine::addPC(){
+        WriteRegister(PrevPCReg, ReadRegister(PCReg));
+        WriteRegister(PCReg, ReadRegister(PCReg) + sizeof(int));
+        WriteRegister(NextPCReg, ReadRegister(NextPCReg) + sizeof(int));
+}

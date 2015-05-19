@@ -61,6 +61,8 @@ typedef int SpaceId;
 SpaceId Exec(char *name);
  
 /* Only return once the the user program "id" has finished.  
+..........................................................................................................................................0
+...............................................
  * Return the exit status.
  */
 int Join(SpaceId id); 	
@@ -118,7 +120,7 @@ void Close(OpenFileId id);
 /* Fork a thread to run a procedure ("func") in the *same* address space 
  * as the current thread.
  */
-void Fork(void (*func)());
+int Fork(void (*func)());
 
 /* Yield the CPU to another runnable thread, whether in this address space 
  * or not. 

@@ -38,8 +38,8 @@ Thread::Thread(char* threadName, int priority)
     stackTop = NULL;
     stack = NULL;
     status = JUST_CREATED;
-    tid_ = 0;
-    uid_ = 0;
+    tid_ = -1;
+    uid_ = -1;
     priority_ = priority;    //if not define priority, we think it is zero ,the smallest priority.
 #ifdef USER_PROGRAM
     space = NULL;
@@ -87,13 +87,13 @@ Thread::~Thread()
 //	"arg" is a single argument to be passed to the procedure.
 //----------------------------------------------------------------------
 
-void 
+int 
 Thread::Fork(VoidFunctionPtr func, int arg)
 {
     DEBUG('t', "Forking thread \"%s\" with func = 0x%x, arg = %d\n",
 	  name, (int) func, arg);
     int tid = thread_slot->Alloc(this);   //put the thread pointer into thread_slot
-    if(tid == -1) return;
+    if(tid == -1) return -1;
     else tid_ = tid;
     StackAllocate(func, arg);
 
@@ -101,6 +101,7 @@ Thread::Fork(VoidFunctionPtr func, int arg)
     scheduler->ReadyToRun(this);	// ReadyToRun assumes that interrupts 
 					// are disabled!
     (void) interrupt->SetLevel(oldLevel);
+    return tid;
 }    
 
 //----------------------------------------------------------------------
@@ -156,6 +157,12 @@ Thread::Finish ()
     threadToBeDestroyed = currentThread;
     thread_slot->release(this->tid_);    //remove from thread_slot
     printf("Thread ID:%d name:%s finish\n", this->tid_, this->name);     //print the finish information for debug
+    // check if itself is joined to any thread
+    if(currentThread->uid_>=0){
+        ((Thread *)thread_slot->getByIndex(currentThread->uid_))->exit_id = currentThread->exit_id;
+        scheduler->ReadyToRun((Thread *)thread_slot->getByIndex(currentThread->uid_)); //awake the father thread
+        printf("awake the father thread ID %d\n", currentThread->uid_);
+    }
     Sleep();					// invokes SWITCH
     // not reached
 }
@@ -219,7 +226,7 @@ void
 Thread::Sleep ()
 {
     Thread *nextThread;
-    
+     IntStatus oldLevel = interrupt->SetLevel(IntOff);
     ASSERT(this == currentThread);
     ASSERT(interrupt->getLevel() == IntOff);
     
@@ -230,6 +237,7 @@ Thread::Sleep ()
 	interrupt->Idle();	// no one to run, wait for an interrupt
         
     scheduler->Run(nextThread); // returns when we've been signalled
+    (void) interrupt->SetLevel(oldLevel);
 }
 
 //----------------------------------------------------------------------

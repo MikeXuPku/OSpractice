@@ -1,0 +1,15 @@
+#include <stdio.h>
+#include "syscall.h"
+char sentence[19]={};
+int
+main()
+{
+    	Create("leo");
+	int id = Open("leo");
+	Write("leo is a big fool!", 18, id);
+	int num = Read(sentence, 3, id);
+	printf("successfully read %d bytes\n");
+	printf("my name is %s\n", sentence);
+	Close(id);
+    /* not reached */
+}

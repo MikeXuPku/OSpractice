@@ -29,7 +29,7 @@
 class OpenFile {
   public:
     OpenFile(int f) { file = f; currentOffset = 0; }	// open the file
-    ~OpenFile() { Close(file); }			// close the file
+    ~OpenFile() {  }			// close the file
 
     int ReadAt(char *into, int numBytes, int position) { 
     		Lseek(file, position, 0); 
@@ -46,14 +46,16 @@ class OpenFile {
 		return numRead;
     		}
     int Write(char *from, int numBytes) {
+                               //printf("openfile write function write: %s\n", from);
 		int numWritten = WriteAt(from, numBytes, currentOffset); 
 		currentOffset += numWritten;
 		return numWritten;
 		}
 
     int Length() { Lseek(file, 0, 2); return Tell(file); }
+
     
-  private:
+  public:
     int file;
     int currentOffset;
 };

@@ -174,6 +174,7 @@ OpenForReadWrite(char *name, bool crashOnError)
     int fd = open(name, O_RDWR, 0);
 
     ASSERT(!crashOnError || fd >= 0);
+    printf("unix successfully open file: %s  at id %d\n", name, fd);
     return fd;
 }
 
@@ -250,6 +251,7 @@ Tell(int fd)
 void 
 Close(int fd)
 {
+    printf("unix close a file :%d\n",fd);
     int retVal = close(fd);
     ASSERT(retVal >= 0); 
 }

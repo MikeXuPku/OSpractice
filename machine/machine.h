@@ -151,6 +151,8 @@ class Machine {
     int findFreeSwapPage();
     int spareOutPage();
     int kickOutPage();
+
+    void addPC();
     //added by xuliyou
 
 

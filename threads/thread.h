@@ -94,7 +94,7 @@ class Thread {
     void activate();
     //--------------------------------------------------------------
 
-    void Fork(VoidFunctionPtr func, int arg); 	// Make thread run (*func)(arg)
+    int Fork(VoidFunctionPtr func, int arg); 	// Make thread run (*func)(arg)
     void Yield();  				// Relinquish the CPU if any 
 						// other thread is runnable
     void Sleep();  				// Put the thread to sleep and 
@@ -116,7 +116,7 @@ class Thread {
 
     void Print() { printf("Thread ID:%d name:%s priority:%d status:%s\n", tid_, name, priority_, thread_status[status]); }
 
-  private:
+  public:
     // some of the private data for this class is listed above
     
     int* stack; 	 		// Bottom of the stack 
@@ -124,6 +124,7 @@ class Thread {
 					// (If NULL, don't deallocate stack)
     ThreadStatus status;		// ready, running or blocked
     char* name;
+    int exit_id;
     int tid_;
     int uid_;                 //now uid doesn't have much work to do
     int priority_;              //represent the priority of the thread

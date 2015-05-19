@@ -47,13 +47,41 @@
 //	"which" is the kind of exception.  The list of possible exceptions 
 //	are in machine.h.
 //----------------------------------------------------------------------
+void runUserThread(int addr){
+    AddrSpace * space = currentThread->space;
+    TranslationEntry* newpageTable = new TranslationEntry[space->numPages + 2];
+    for(int i=0;i<space->numPages;++i)newpageTable[i] = space->pageTable[i];
+    for(int i=space->numPages;i<2+ space->numPages;++i){
+        
+            newpageTable[i].virtualPage = i;   // for now, virtual page # = phys page #
+            newpageTable[i].physicalPage = -1;
+            newpageTable[i].valid = false;
+            newpageTable[i].use = FALSE;
+            newpageTable[i].dirty = FALSE;
+            newpageTable[i].readOnly = FALSE;  // if the code segment was entirely on 
+                    // a separate page, we could set its 
+                    // pages to be read-only
+            newpageTable[i].time_when_use = 0;
+    }
+    delete space->pageTable;
+    space->pageTable = newpageTable;
+    space->numPages = space->numPages +2;
+
+    space->InitRegisters();     // set the initial register values
+    machine->WriteRegister(PCReg, addr);
+    machine->WriteRegister(NextPCReg, addr +4);
+    space->RestoreState();      // load page table register
+
+    machine->Run();         // jump to the user progam
+    ASSERT(FALSE);               
+}
 
 void
 ExceptionHandler(ExceptionType which)
 {
     int type = machine->ReadRegister(2);
 
-    if ((which == SyscallException) && (type == SC_Halt)) {
+    if ((which == SyscallException) && (type == SC_Halt)) {                                                       // Halt
 	DEBUG('a', "Shutdown, initiated by user program.\n");
 	printf("normal shutdown by calling systemcall sc_halt\n");
 	printf("tlb hit times: %d\n", tlbhit);
@@ -61,13 +89,160 @@ ExceptionHandler(ExceptionType which)
 	printf("tlb hit rate: %f\%\n", (tlbhit*100.0)/(float)(tlbhit + tlbmiss));
    	interrupt->Halt();
     } 
+    else if(which == SyscallException && type == SC_Create){
+                printf("syscall to create a file\n");
+                int base = (int)machine->ReadRegister(4);
+                int value, count;
+                for(count = 0;true ;count++){
+                        machine->ReadMem(base + count, 1, &value);
+                        if(value == 0)break;
+                }
+                char *filename = new char[count+1];
+                for(int i = 0; i <= count; ++i){
+                        machine->ReadMem(base + i, 1, (int *)(filename + i));
+                }
+                printf("the filename you want to create is: %s\n", filename);
+                fileSystem->Create(filename, 100);
+                printf("create file successfully!!!!!!!!\n");
+                machine->addPC();
+                delete []filename;
+    }
+    else if(which == SyscallException && type == SC_Open){
+                printf("syscall to open a file\n");
+                int base = (int)machine->ReadRegister(4);
+                int value, count;
+                for(count = 0;true ;count++){
+                        machine->ReadMem(base + count, 1, &value);
+                        if(value == 0)break;
+                }
+                char *filename = new char[count+1];
+                for(int i = 0; i <= count; ++i){
+                        machine->ReadMem(base + i, 1, (int *)(filename + i));
+                }
+                printf("the filename you want to open is: %s\n", filename);
+                int fileId = (fileSystem->Open(filename))->file;
+                printf("open file successfully!!!!!!!!\n");
+                machine->WriteRegister(2, fileId);   //return value
+                machine->addPC();
+                delete []filename;
+    }
+    else if(which == SyscallException && type == SC_Close){
+                printf("syscall to close a file\n");
+                int fileId = machine->ReadRegister(4);
+                printf("fileId %d to be closed\n",fileId);
+                Close(fileId);
+                printf("closed file successfully!!!!!!!!!!!\n");
+                machine->addPC();
+    }
+    else if(which == SyscallException && type == SC_Write){
+                printf("syscall to write a file\n");
+                int base = machine->ReadRegister(4);
+                int size = machine->ReadRegister(5);
+                int fileId = machine->ReadRegister(6);
+                char *content = new char[size +1];
+                for(int i=0;i<size;++i){
+                    machine->ReadMem(base+i, 1, (int *)(content + i));
+                    printf("%c", content[i]);
+                }
+                content[size] = '\0';
+                printf("\nsize is %d. content is: %s\n", size, content);
+                OpenFile *point = new OpenFile(fileId);
+                point->Write(content, size);    
+                delete point;
+                delete []content;
+                machine->addPC();
+                printf("successfully write a file\n");
+    }
+    else if(which == SyscallException && type == SC_Read){
+                printf("syscall to read a file\n");
+                int base = machine->ReadRegister(4);
+                int size = machine->ReadRegister(5);
+                int fileId = machine->ReadRegister(6);
+                char *content = new char[size +1];
+                OpenFile *point = new OpenFile(fileId);
+                int reNum = point->Read(content, size);
+                for(int i=0;i<reNum;++i){
+                    machine->WriteMem(base +i, 1, content[i]);
+                }  
+                content[reNum] = '\0';
+                printf("syscall read content: %s\n", content);
+                machine->WriteRegister(2, reNum);             
+                delete content;
+                delete point;
+                machine->addPC();
+                printf("successfully read syscall!!!!!!!!!!!!!!!!!\n");
+    }
+    else if(which == SyscallException && type == SC_Exec){
+                printf("syscall to exec a userProgram\n");
+                int base = (int)machine->ReadRegister(4);
+                int value, count;
+                for(count = 0;true ;count++){
+                        machine->ReadMem(base + count, 1, &value);
+                        if(value == 0)break;
+                }
+                char *filename = new char[count+1];
+                for(int i = 0; i <= count; ++i){
+                        machine->ReadMem(base + i, 1, (int *)(filename + i));
+                }
+                printf("the userProgram you want to open is: %s\n", filename);
+                OpenFile *executable = fileSystem->Open(filename);
+                AddrSpace *space;
+                if(executable == NULL){
+                    printf("fail to open the file: %s\n", filename);
+                    machine->addPC();
+                    return;
+                }
+                space = new AddrSpace(executable);
+                printf("new a addrspace successfully!\n");
+                //delete currentThread->space;   
+                currentThread->space = space;
+                space->InitRegisters();
+                space->RestoreState();
+                Close(executable->file);
+                delete executable;
+                printf("ready to exec a new userProgram\n");
+                machine->Run();
+                ASSERT(false);
+    }
+    else if(which == SyscallException && type == SC_Join){
+                //set the uid of the thread you want to join your tid
+                //then sleep
+                //read the exit status from the uid of the currentThread
+                // we need to modify thread::finish() to let the thread notify his father thread when is finishing
+                printf("ready to syscall join\n");
+                int id = machine->ReadRegister(4);
+                printf("the thread id you want to join is %d\n", id);
+                Thread *son = (Thread *)thread_slot->getByIndex(id);
+                son->uid_ = currentThread->getId();
+                currentThread->Sleep();
+                machine->WriteRegister(2, currentThread->exit_id);
+                machine->addPC();
+                printf("successfullly join. the exit id is %d\n", currentThread->exit_id);
+    }
+    else if(which == SyscallException && type == SC_Yield){
+                printf("ready to syscall yield\n");
+                currentThread->Yield();
+                machine->addPC();
+    }
     else if(which == SyscallException && type == SC_Exit){
                printf("thread exit with status :  %d\n",machine->ReadRegister(4));
-               interrupt->Halt();
+               currentThread->exit_id = machine->ReadRegister(4);
+               currentThread->Finish();
+               machine->addPC();
+    }
+    else if(which == SyscallException && type == SC_Fork){
+                printf("ready to syscall fork\n");
+                int addr = machine->ReadRegister(4);
+                Thread * newthread = new Thread("syscall fork thread");
+                newthread->space = currentThread->space;
+                int tid = newthread->Fork(runUserThread, addr);
+                machine->WriteRegister(2,tid);
+                machine->addPC();
     }
     else if(which == SyscallException && type == SC_Print){
              int p = (int)machine->ReadRegister(4);
              printf("systemcall  Print**********%d\n", p);
+             machine->addPC();
     }
     else if(which == PageFaultException){
         printf("a PageFaultException found\n");

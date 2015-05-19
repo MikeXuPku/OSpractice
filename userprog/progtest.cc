@@ -34,6 +34,7 @@ StartProcess(char *filename)
     space = new AddrSpace(executable);    
     currentThread->space = space;
 
+    Close(executable->file);
     delete executable;			// close file
 
     space->InitRegisters();		// set the initial register values
@@ -83,6 +84,7 @@ ConsoleTest (char *in, char *out)
 	if (ch == 'q') return;  // if q, quit
     }
 }
+
 void    SynchConsoleTest(char *in, char *out)
 {
     char str[255];

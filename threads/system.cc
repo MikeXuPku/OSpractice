@@ -147,7 +147,8 @@ Initialize(int argc, char **argv)
     // But if it ever tries to give up the CPU, we better have a Thread
     // object to save its state. 
     currentThread = new Thread("main");	
-    thread_slot->Alloc(currentThread);	//main thread allocated in thread_slot
+    currentThread->tid_ =  thread_slot->Alloc(currentThread);	//main thread allocated in thread_slot
+
  
     currentThread->setStatus(RUNNING);
 

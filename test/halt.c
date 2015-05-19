@@ -15,6 +15,12 @@
 int
 main()
 {
-    Halt();
+    int i, num;
+    num =0;
+    Create("daisy");
+    i = Open("daisy");
+    Write("daisy is a big fool!", 20, i);
+    Close(i);    
+    Exit(1);
     /* not reached */
 }

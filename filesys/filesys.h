@@ -82,13 +82,19 @@ class FileSystem {
 
     bool Remove(char *name);  		// Delete a file (UNIX unlink)
 
+    bool Remove();
+
     void List();			// List all the files in the file system
 
     void Print();			// List all the files and their contents
 
-    void CD(char *filename);
+    bool CD(char *filename);
 
     void mkdir(char *filename);
+
+    void ls();
+
+    void file(char *str2);
 
   public:
    OpenFile* freeMapFile;		// Bit map of free disk blocks,

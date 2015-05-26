@@ -87,8 +87,13 @@ FileHeader::Allocate(BitMap *freeMap, int fileSize)
 void 
 FileHeader::Deallocate(BitMap *freeMap)
 {
+    //printf("contents of bitmap before delete file\n");
+    //fflush(stdout);
+    //freeMap->Print();
     if(numSectors<NumDirect){
-        for (int i = 0; i < NumSectors; i++) {
+        for (int i = 0; i < numSectors; i++) {
+            //printf("want to clear %d\n", dataSectors[i]);
+            fflush(stdout);
 	ASSERT(freeMap->Test((int) dataSectors[i]));  // ought to be marked!
 	freeMap->Clear((int) dataSectors[i]);
         }
@@ -181,15 +186,19 @@ FileHeader::Print()
 {
     int i, j, k;
     char *data = new char[SectorSize];
-
-    printf("FileHeader contents.  File size: %d. createTime:%d. lastAccess:%d. lastModify:%d. File blocks:\n", numBytes, createTime, lastAccess, lastModify);
+    int indirectSectorText[SectorSize/4];
+    printf("FileHeader contents.  File size: %d. numSector:%d createTime:%d. lastAccess:%d. lastModify:%d. File blocks:\n", numBytes, numSectors, createTime, lastAccess, lastModify);
+    if(numSectors < NumDirect){
+        for(i =0;i<numSectors;++i)printf("%d ", dataSectors[i]);
+    }
+    else{
     for (i = 0; i < NumDirect; i++)
 	printf("%d ", dataSectors[i]);
-    int indirectSectorText[SectorSize/4];
     if(numSectors >= NumDirect){
         printf("we need a 1st indirect index, and print the context:\n");
         synchDisk->ReadSector(dataSectors[NumDirect-1], (char*)indirectSectorText);
         for(int i = 0;i<SectorSize/4;++i)printf("%d ",indirectSectorText[i]);
+    }
     }
     printf("\nFile contents:\n");
       // make sure the datasectors[] won't access exceeding

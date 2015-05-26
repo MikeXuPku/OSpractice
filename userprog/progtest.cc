@@ -24,6 +24,7 @@
 void
 StartProcess(char *filename)
 {
+    printf("StartProcess name:%s\n", filename);
     OpenFile *executable = fileSystem->Open(filename);
     AddrSpace *space;
 
@@ -33,8 +34,9 @@ StartProcess(char *filename)
     }
     space = new AddrSpace(executable);    
     currentThread->space = space;
-
+#ifdef   FILESYS_STUB
     Close(executable->file);
+#endif
     delete executable;			// close file
 
     space->InitRegisters();		// set the initial register values

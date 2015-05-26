@@ -41,6 +41,7 @@ Thread::Thread(char* threadName, int priority)
     tid_ = -1;
     uid_ = -1;
     priority_ = priority;    //if not define priority, we think it is zero ,the smallest priority.
+    file_table_ = new Table(10);             //we assume a thread can open at most 10 files
 #ifdef USER_PROGRAM
     space = NULL;
 #endif

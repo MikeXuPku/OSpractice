@@ -39,6 +39,7 @@
 
 #include "copyright.h"
 #include "utility.h"
+#include "table.h"
 
 #ifdef USER_PROGRAM
 #include "machine.h"
@@ -128,6 +129,8 @@ class Thread {
     int tid_;
     int uid_;                 //now uid doesn't have much work to do
     int priority_;              //represent the priority of the thread
+
+    Table* file_table_;
 
     void StackAllocate(VoidFunctionPtr func, int arg);
     					// Allocate a stack for thread.

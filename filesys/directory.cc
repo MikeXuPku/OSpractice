@@ -193,19 +193,15 @@ Directory::Remove(char *name)
 void
 Directory::List()
 {
+    char type_name[2][20];
+    strncpy(type_name[0], "ordinary file", 15);
+    strncpy(type_name[1], "directory file", 16);
    for (int i = 0; i < tableSize; i++){
         if (table[i].inUse){
-            printf("%s\n", table[i].name);
-            if(table[i].file_type_ == DIRECTORY){
-                printf("###########Sub Directry###################\n");
-                Directory dir(10);
-                OpenFile openfile(table[i].sector);
-                dir.FetchFrom(&openfile);
-                dir.List();
-                printf("###########End Sub Directory###############\n");
-            }
+            printf("%s TYPE:%s\n", table[i].name, type_name[table[i].file_type_]);
         }
     }
+    //printf("\n");
 }
 
 //----------------------------------------------------------------------

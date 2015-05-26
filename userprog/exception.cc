@@ -108,6 +108,7 @@ ExceptionHandler(ExceptionType which)
                 delete []filename;
     }
     else if(which == SyscallException && type == SC_Open){
+       #ifdef FILESYS_STUB 
                 printf("syscall to open a file\n");
                 int base = (int)machine->ReadRegister(4);
                 int value, count;
@@ -125,14 +126,44 @@ ExceptionHandler(ExceptionType which)
                 machine->WriteRegister(2, fileId);   //return value
                 machine->addPC();
                 delete []filename;
+        #else
+                printf("syscall to open a file\n");
+                int base = (int)machine->ReadRegister(4);
+                int value, count;
+                for(count = 0;true ;count++){
+                        machine->ReadMem(base + count, 1, &value);
+                        if(value == 0)break;
+                }
+                char *filename = new char[count+1];
+                for(int i = 0; i <= count; ++i){
+                        machine->ReadMem(base + i, 1, (int *)(filename + i));
+                }
+                printf("the filename you want to open is: %s\n", filename);
+                // when use our own filesystem, we don't have the fileId, so we return the fhdr sector number 
+                int fileId = (fileSystem->Open(filename))->sector_;
+                printf("open file successfully!!!!!!!!\n");
+                machine->WriteRegister(2, fileId);   //return value
+                machine->addPC();
+                delete []filename;               
+
+        #endif
     }
     else if(which == SyscallException && type == SC_Close){
+        #ifdef  FILESYS_STUB
                 printf("syscall to close a file\n");
                 int fileId = machine->ReadRegister(4);
                 printf("fileId %d to be closed\n",fileId);
                 Close(fileId);
                 printf("closed file successfully!!!!!!!!!!!\n");
                 machine->addPC();
+        #else
+                printf("syscall to close a file\n");
+                int fileId = machine->ReadRegister(4);
+                printf("fileId %d to be closed\n",fileId);
+                Close(fileId);
+                printf("closed file successfully!!!!!!!!!!!\n");
+                machine->addPC();
+        #endif
     }
     else if(which == SyscallException && type == SC_Write){
                 printf("syscall to write a file\n");
@@ -198,7 +229,9 @@ ExceptionHandler(ExceptionType which)
                 currentThread->space = space;
                 space->InitRegisters();
                 space->RestoreState();
+        #ifdef   FILESYS_STUB
                 Close(executable->file);
+        #endif
                 delete executable;
                 printf("ready to exec a new userProgram\n");
                 machine->Run();

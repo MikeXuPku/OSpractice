@@ -64,6 +64,82 @@ extern void Print(char *file), PerformanceTest(void), filesysTest(void);
 extern void StartProcess(char *file), ConsoleTest(char *in, char *out), SynchConsoleTest(char *in, char *out);
 extern void MailTest(int networkID);
 
+void startProcess(int a){
+	StartProcess((char*)(a));
+}
+//----------------------------------------------------------------------------------------------------
+//shell function
+//----------------------------------------------------------------------------------------------------
+void shell(int dummy = 0){
+	char *p = "nachos@nachos:~";
+	char currentD[200];
+	strncpy(currentD, p, 20);
+	char command[100];
+	char str1[100];
+	char str2[100];
+	printf("%s%c", currentD, '$');
+	while(1){
+		gets(command);
+		if(strcmp(command, "quit") == 0)break;                    //single command
+		else if(strcmp(command, "ls") == 0){
+			fileSystem->ls();
+			printf("\n");
+		}
+		else{                                                                                       //dual command
+			int num = sscanf(command, "%s%s", str1, str2);
+			if(num == -1)printf("invalid command!\n");
+			else{
+				if(strcmp(str1, "create") == 0){
+					fileSystem->Create(str2, 10);                         //default file size
+				}
+				else if(strcmp(str1, "mkdir") == 0){
+					fileSystem->mkdir(str2);
+				}
+				else if(strcmp(str1, "delete") == 0){
+					fileSystem->Remove(str2);
+				}
+				else if(strcmp(str1, "file") == 0){
+					fileSystem->file(str2);
+				}
+				else if(strcmp(str1, "cd") == 0){
+					if(fileSystem->CD(str2)){
+						if(strcmp(str2, "..") == 0){
+							int length = strlen(currentD);
+							//printf("cd .. OK\n");
+							for(int i = length;i>=0;--i){
+								if(currentD[i] == '/'){
+									//printf("%s\n", currentD);
+									currentD[i] = '\0';
+									//printf("%s\n", currentD);
+									break;
+								}
+							}
+						}
+						else{
+							int length = strlen(currentD);
+							currentD[length] = '/';
+							strncpy(currentD+length+1, str2, 20);
+						}
+					}
+				}
+				else if(strcmp(str1, "exec") == 0){
+
+					
+					Thread * thread = new Thread(str2);
+					int id = thread->Fork(startProcess, (int)str2);
+                				thread->uid_ = currentThread->getId();   //work equal to join
+                				currentThread->Sleep();
+
+				}
+				else{
+					printf("invalid command\n" );
+				}
+			}
+		}
+		printf("%s%c", currentD, '$');
+	}
+}
+
 //----------------------------------------------------------------------
 // main
 // 	Bootstrap the operating system kernel.  
@@ -110,6 +186,10 @@ main(int argc, char **argv)
 #ifdef USER_PROGRAM
         if (!strcmp(*argv, "-x")) {        	// run a user program
 	    ASSERT(argc > 1);
+	    if(strcmp(*(argv + 1), "shell") == 0){
+	    	shell();
+	    	break;
+	    }
             StartProcess(*(argv + 1));
             argCount = 2;
         } else if (!strcmp(*argv, "-c")) {      // test the console

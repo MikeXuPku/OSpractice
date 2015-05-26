@@ -302,19 +302,29 @@ FileSystem::Remove(char *name)
     int sector;
     
     directory = new Directory(NumDirEntries);
-    directory->FetchFrom(directoryFile);
+    OpenFile *openfile = new OpenFile(now);
+    directory->FetchFrom(openfile);
     sector = directory->Find(name);
     if (sector == -1) {
+        delete openfile;
        delete directory;			 // file not found 
        (void) interrupt->SetLevel(oldLevel);
+       printf("fail to delete\n");
        return FALSE;
     }
     else if(referCount[sector] > 1){
         printf("other thread are using this file:%s, so you can not delete it\n", name);
         delete directory;
+        delete openfile;
         (void) interrupt->SetLevel(oldLevel);
         return FALSE;
     }
+    if((directory->table[directory->FindIndex(name)]).file_type_ ==  1){
+        CD(name);
+        Remove();
+        CD("..");
+    }
+
     fileHdr = new FileHeader;
     fileHdr->FetchFrom(sector);
 
@@ -326,7 +336,8 @@ FileSystem::Remove(char *name)
     directory->Remove(name);
 
     freeMap->WriteBack(freeMapFile);		// flush to disk
-    directory->WriteBack(directoryFile);        // flush to disk
+    directory->WriteBack(openfile);        // flush to disk
+    delete openfile;
     delete fileHdr;
     delete directory;
     delete freeMap;
@@ -334,6 +345,28 @@ FileSystem::Remove(char *name)
     return TRUE;
 } 
 
+
+
+bool
+FileSystem::Remove()
+{ 
+    IntStatus oldLevel = interrupt->SetLevel(IntOff);
+    Directory *directory;
+    BitMap *freeMap;
+    FileHeader *fileHdr;
+    int sector;
+    
+    directory = new Directory(NumDirEntries);
+    OpenFile *openfile = new OpenFile(now);
+    directory->FetchFrom(openfile);
+    for(int i=0;i<directory->tableSize;++i){
+        if(directory->table[i].inUse)Remove(directory->table[i].name);
+    }
+    delete openfile;
+    delete directory;
+    (void) interrupt->SetLevel(oldLevel);
+    return TRUE;
+} 
 //----------------------------------------------------------------------
 // FileSystem::List
 // 	List all the files in the file system directory.
@@ -387,7 +420,7 @@ FileSystem::Print()
     delete directory;
 } 
 
-void FileSystem::CD(char *filename)
+bool FileSystem::CD(char *filename)
 {
      IntStatus oldLevel = interrupt->SetLevel(IntOff);
     OpenFile *directoryfile ; 
@@ -400,6 +433,7 @@ void FileSystem::CD(char *filename)
         father = directory->father;
         delete directory;
         delete directoryfile;
+        return true;
     }
     else{
         directoryfile = new OpenFile(now);
@@ -407,17 +441,20 @@ void FileSystem::CD(char *filename)
         int i = directory->FindIndex(filename);
         if(i == -1){
             printf("can not find the file:%s\n", filename);
+            return false;
         }
         else if((directory->table[i]).file_type_ == NORMAL ){
             printf("the file:%s is not a directory file\n", filename);
+            return false;
         }
         else{
             father = now;
             now = directory->table[i].sector;
-            printf("enter directory file:%s successfully!\n", filename);
+            //printf("enter directory file:%s successfully!\n", filename);
         }
         delete directory;
         delete directoryfile;
+        return true;
     }
     (void) interrupt->SetLevel(oldLevel);
 }
@@ -488,4 +525,22 @@ void FileSystem::mkdir(char *filename)
     delete directory; 
     if(success)printf("mkdir:%s successfully\n",filename);
     (void) interrupt->SetLevel(oldLevel);
+}
+
+void FileSystem::ls(){
+    Directory * directory = new Directory(NumDirEntries);
+    OpenFile * openfile = new OpenFile(now);
+    directory->FetchFrom(openfile);
+    delete openfile;
+    directory->List();
+    delete directory;
+}
+
+void FileSystem::file(char * str2){
+    FileHeader *filehdr = new FileHeader;
+    OpenFile* openfile = fileSystem->Open(str2);
+    filehdr->FetchFrom(openfile->sector_);
+    filehdr->Print();
+    delete filehdr;
+    delete openfile;
 }

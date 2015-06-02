@@ -194,10 +194,33 @@ ThreadTest5() //barrier test
 // ThreadTest
 // 	Invoke a test routine.
 //----------------------------------------------------------------------
+void reciever(int a){
+    Pipe *pipe = (Pipe*)a;
+    char line[11]; line[10] = '\0';
+    (pipe->second)->Read(line,10);
+    printf("reciever recieve message: %s\n", line); 
+}
+
+void pipetest(){
+    Pipe *pipe = new Pipe("pipe");
+    Thread *thread = new Thread("reciever");
+    int id = thread->Fork( reciever, (int) pipe);
+    (pipe->first)->Write("Leo happy!", 10);
+
+    thread->uid_ = currentThread->getId();   //work equal to join
+    currentThread->Sleep();
+
+
+    delete pipe;
+}
 
 void
-ThreadTest()
+ThreadTest(int  a = 0)
 {
+    if(a == 1){
+        pipetest();
+        return;
+    }
     switch (testnum) {
     case 1:
 	ThreadTest1();

@@ -107,4 +107,14 @@ class FileSystem {
 
 #endif // FILESYS
 
+
+class Pipe{
+public:
+    Pipe(char * name);
+    ~Pipe();
+    OpenFile *first;
+    OpenFile *second;
+};
+
+
 #endif // FS_H

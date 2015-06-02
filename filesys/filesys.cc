@@ -295,12 +295,11 @@ FileSystem::Open(char *name)
 bool
 FileSystem::Remove(char *name)
 { 
-     IntStatus oldLevel = interrupt->SetLevel(IntOff);
+    IntStatus oldLevel = interrupt->SetLevel(IntOff);
     Directory *directory;
     BitMap *freeMap;
     FileHeader *fileHdr;
     int sector;
-    
     directory = new Directory(NumDirEntries);
     OpenFile *openfile = new OpenFile(now);
     directory->FetchFrom(openfile);
@@ -422,7 +421,7 @@ FileSystem::Print()
 
 bool FileSystem::CD(char *filename)
 {
-     IntStatus oldLevel = interrupt->SetLevel(IntOff);
+    IntStatus oldLevel = interrupt->SetLevel(IntOff);
     OpenFile *directoryfile ; 
     Directory *directory = new Directory(NumDirEntries);
     if(strcmp(filename, "..") == 0) {
@@ -461,7 +460,7 @@ bool FileSystem::CD(char *filename)
 
 void FileSystem::mkdir(char *filename)
 {
-     IntStatus oldLevel = interrupt->SetLevel(IntOff);
+    IntStatus oldLevel = interrupt->SetLevel(IntOff);
     Directory *directory;
     BitMap *freeMap;
     FileHeader *hdr;
@@ -543,4 +542,63 @@ void FileSystem::file(char * str2){
     filehdr->Print();
     delete filehdr;
     delete openfile;
+}
+
+Pipe::Pipe(char *name){
+        bool success;
+        BitMap *freeMap;
+        FileHeader *hdr;
+        int sector;
+        freeMap = new BitMap(NumSectors);
+        freeMap->FetchFrom(fileSystem->freeMapFile);
+        sector = freeMap->Find();   // find a sector to hold the file header
+        printf("we find sector %d to store the fileheader\n", sector);
+        if (sector == -1)       
+            success = FALSE;        // no free block for file header     
+        else{
+            hdr = new FileHeader;
+            if (!hdr->Allocate(freeMap, 100))
+                success = FALSE;    // no space on disk for data
+            else
+             {  
+                success = TRUE;
+            // everthing worked, flush all changes back to disk
+                //printf("just before write back to disk, we check the hdr file:\n");
+                //hdr->Print();
+                //printf("################################################\n");
+                hdr->WriteBack(sector); 
+                //printf("sector: %d  hdr writeback ok??????????????????????????????????\n", sector);
+                //hdr->FetchFrom(sector);
+                //hdr->Print();
+                //printf("mysterymysterymysterymysterymysterymysterymysterymysterymystery \n");
+                //directory->Print();       
+                //freeMap->Print();
+                freeMap->WriteBack(fileSystem->freeMapFile);
+                //printf("###################################################\n");
+            }
+            delete hdr;
+        }
+        delete freeMap;
+        first = new OpenFile(sector);
+        second = new OpenFile(sector);
+}
+
+Pipe::~Pipe(){
+    BitMap *freeMap;
+    FileHeader *fileHdr;
+    int sector = first->sector_;
+    delete first;
+    delete second;
+    fileHdr = new FileHeader;
+    fileHdr->FetchFrom(sector);
+
+    freeMap = new BitMap(NumSectors);
+    freeMap->FetchFrom(fileSystem->freeMapFile);
+
+    fileHdr->Deallocate(freeMap);       // remove data blocks
+    freeMap->Clear(sector);         // remove header block
+
+    freeMap->WriteBack(fileSystem->freeMapFile);        // flush to disk
+    delete fileHdr;
+    delete freeMap;
 }

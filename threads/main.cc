@@ -59,7 +59,7 @@ extern int testnum;
 
 // External functions used by this file
 
-extern void ThreadTest(void), Copy(char *unixFile, char *nachosFile);
+extern void ThreadTest(int), Copy(char *unixFile, char *nachosFile);
 extern void Print(char *file), PerformanceTest(void), filesysTest(void);
 extern void StartProcess(char *file), ConsoleTest(char *in, char *out), SynchConsoleTest(char *in, char *out);
 extern void MailTest(int networkID);
@@ -84,6 +84,12 @@ void shell(int dummy = 0){
 		else if(strcmp(command, "ls") == 0){
 			fileSystem->ls();
 			printf("\n");
+		}
+		else if(strcmp(command, "threadTest") == 0){
+					Thread * thread = new Thread("threadTest");
+					int id = thread->Fork(ThreadTest, 1);
+                				thread->uid_ = currentThread->getId();   //work equal to join
+                				currentThread->Sleep();
 		}
 		else{                                                                                       //dual command
 			int num = sscanf(command, "%s%s", str1, str2);
@@ -122,9 +128,7 @@ void shell(int dummy = 0){
 						}
 					}
 				}
-				else if(strcmp(str1, "exec") == 0){
-
-					
+				else if(strcmp(str1, "exec") == 0){					
 					Thread * thread = new Thread(str2);
 					int id = thread->Fork(startProcess, (int)str2);
                 				thread->uid_ = currentThread->getId();   //work equal to join
